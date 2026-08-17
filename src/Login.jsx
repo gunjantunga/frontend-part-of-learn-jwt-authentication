@@ -1,6 +1,6 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AuthContext } from "./provider";
+import { useAuthStore } from "./store/authStore";
 
 function Login() {
     const [userData, setUserData] = useState({
@@ -8,18 +8,8 @@ function Login() {
         password: ""
     });
 
-
-    const { setAccessToken, setRefreshToken } = useContext(AuthContext);
-
-
+    const setTokens = useAuthStore((state) => state.setTokens);
     const navigate = useNavigate();
-
-    function settoken(accessToken, refreshToken) {
-        localStorage.setItem("accessToken", accessToken)
-        localStorage.setItem("refreshToken", refreshToken)
-        setAccessToken(accessToken);
-        setRefreshToken(refreshToken);
-    }
 
 
     async function login() {
@@ -40,7 +30,7 @@ function Login() {
 
                 let data = await response.json()
                 // lets store the tokens in local storage
-                settoken(data.accessToken, data.refreshToken)
+                setTokens(data.accessToken, data.refreshToken)
                 navigate("/customer")
             } else {
 

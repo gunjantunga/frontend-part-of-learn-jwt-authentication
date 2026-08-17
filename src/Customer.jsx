@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
-import { useFetch } from "./my-fetch";
+import { myfetch } from "./my-fetch";
 
 function CustomerPage() {
 
 
     const [customerData, setCustomerData] = useState([]);
 
-    const _fetch = useFetch();
 
 
     async function getCustomer() {
 
-        let response = await _fetch("/customer-data");
+        let response = await myfetch("/customer-data");
         if (response.ok) {
             setCustomerData(response.data);
 

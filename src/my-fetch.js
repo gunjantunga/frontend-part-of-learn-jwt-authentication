@@ -1,6 +1,5 @@
 
-import { AuthContext } from "./provider";
-import { useContext } from "react";
+import { useAuthStore } from "./store/authStore";
 
 async function parsebody(res) {
 
@@ -88,51 +87,71 @@ function refreshOnce(refreshTokens) {
 
 }
 
-export function useFetch() {
-
-    const { setAccessToken, setRefreshToken } = useContext(AuthContext);
-
-    async function myfetch(url, option = {}, retry = true) {
+export async function myfetch(url, option = {}, retry = true) {
 
 
-        let accessToken = localStorage.getItem("accessToken");
+    const { setTokens, logout, accessToken } = useAuthStore.getState();
 
-        const headers = new Headers(option.headers);
-        if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    const headers = new Headers(option.headers);
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
+    //fetch throws error when timeout or network error
 
-        function clearTokens() {
-            localStorage.removeItem("accessToken");
-            localStorage.removeItem("refreshToken");
-            setAccessToken(null);
-            setRefreshToken(null);
+    let res;
+    try {
 
-        }
+        res = await fetch(url, {
+            ...option,
+            headers
+        });
 
-        function setTokens(accessToken, refreshToken) {
-            localStorage.setItem("accessToken", accessToken);
-            localStorage.setItem("refreshToken", refreshToken);
-            setAccessToken(accessToken);
-            setRefreshToken(refreshToken);
+    } catch (err) {
+        return { ok: false, message: "Internet connection fail" }
+    }
 
-        }
+    if (res.ok) {
 
-        //fetch throws error when timeout or network error
-
-        let res;
+        let data;
         try {
-
-            res = await fetch(url, {
-                ...option,
-                headers
-            });
+            data = await parsebody(res);
 
         } catch (err) {
-            return { ok: false, message: "Internet connection fail" }
+            return { ok: false, status: res.status, message: "Invalid data, parsing failed" }
         }
+        return { ok: true, status: res.status, data }
+    } else {
+        if (res.status === 401 && retry) {
 
-        if (res.ok) {
+            let refreshTokens = localStorage.getItem("refreshToken");
+            if (!refreshTokens) {
+                logout();
+                return { ok: false, message: "Refresh token is missing" }
+            }
 
+            let refreshResponse = await refreshOnce(refreshTokens);
+            if (refreshResponse.ok) {
+                let token = refreshResponse.data;
+
+                if (!token.accessToken || !token.refreshToken) {
+                    logout();
+                    return {
+                        ok: false,
+                        status: refreshResponse.status,
+                        message: "Missing access tokens from server",
+                        data: refreshResponse.data
+                    }
+                } else {
+                    setTokens(token.accessToken, token.refreshToken);
+                }
+                return myfetch(url, option, false);
+            } else {
+                if (res.status === 401) {
+                    logout();
+                }
+                return refreshResponse;
+            }
+
+        } else {
             let data;
             try {
                 data = await parsebody(res);
@@ -140,52 +159,7 @@ export function useFetch() {
             } catch (err) {
                 return { ok: false, status: res.status, message: "Invalid data, parsing failed" }
             }
-            return { ok: true, status: res.status, data }
-        } else {
-            if (res.status === 401 && retry) {
-
-                let refreshTokens = localStorage.getItem("refreshToken");
-                if (!refreshTokens) {
-                    clearTokens();
-                    return { ok: false, message: "Refresh token is missing" }
-                }
-
-                let refreshResponse = await refreshOnce(refreshTokens);
-                if (refreshResponse.ok) {
-                    let token = refreshResponse.data;
-
-                    if (!token.accessToken || !token.refreshToken) {
-                        clearTokens();
-                        return {
-                            ok: false,
-                            status: refreshResponse.status,
-                            message: "Missing access tokens from server",
-                            data: refreshResponse.data
-                        }
-                    } else {
-                        setTokens(token.accessToken, token.refreshToken);
-                    }
-                    return myfetch(url, option, false);
-                } else {
-                    if (res.status === 401) {
-                        clearTokens();
-                    }
-                    return refreshResponse;
-                }
-
-            } else {
-                let data;
-                try {
-                    data = await parsebody(res);
-
-                } catch (err) {
-                    return { ok: false, status: res.status, message: "Invalid data, parsing failed" }
-                }
-                return { ok: false, status: res.status, data }
-            }
+            return { ok: false, status: res.status, data }
         }
     }
-
-    return myfetch;
-
 }

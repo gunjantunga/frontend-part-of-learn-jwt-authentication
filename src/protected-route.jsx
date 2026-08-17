@@ -1,14 +1,15 @@
-import { useContext } from "react";
-import { AuthContext } from "./provider.js";
 import { Navigate, Outlet } from "react-router-dom";
 import Navbar from "./Navbar.jsx";
+import { useAuthStore } from "./store/authStore.js";
 
 
 
 function ProtectedRoute() {
 
 
-    let { accessToken, refreshToken } = useContext(AuthContext);
+    const accessToken = useAuthStore((state) => state.accessToken);
+    const refreshToken = useAuthStore((state) => state.refreshToken);
+
 
     if (accessToken && refreshToken) {
         return <div>
